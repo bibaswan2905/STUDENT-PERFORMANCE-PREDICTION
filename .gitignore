@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+output/models.pkl
+output/Student_Performance_Prediction.xlsx
+.env
+*.egg-info/
+.venv/
+venv/__pycache__/
+*.pyc
+*.pyo
+output/models.pkl
+output/Student_Performance_Prediction.xlsx
+.env
+*.egg-info/
+.venv/
+venv/
