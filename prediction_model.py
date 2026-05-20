@@ -5,9 +5,9 @@ from sklearn.preprocessing import StandardScaler
 import pickle
 import os
 
-# ─────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # CLUSTER DEFINITIONS
-# ─────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # Programming Cluster:  C_Programming (S1) → Data_Structures (S2) → Algorithms (S3)
 # Theory Cluster:       Digital_Logic (S1) → Computer_Organization (S2) → Operating_Systems (S3)
 # Math/Logic Cluster:   Maths_I (S1) → Discrete_Maths (S2) → DBMS (S3)
@@ -76,14 +76,25 @@ BOOK_RECOMMENDATIONS = {
 
 
 def load_data():
-    df1 = pd.read_excel("output/Student_Performance_Prediction.xlsx", sheet_name="Semester_1")
-    df2 = pd.read_excel("output/Student_Performance_Prediction.xlsx", sheet_name="Semester_2")
-    df3 = pd.read_excel("output/Student_Performance_Prediction.xlsx", sheet_name="Semester_3")
-    return df1, df2, df3
+    """✅ FIXED: Load data with correct sheet names matching data_creation_model.py"""
+    try:
+        df1 = pd.read_excel("output/Student_Performance_Prediction.xlsx", sheet_name="Semester_1")
+        df2 = pd.read_excel("output/Student_Performance_Prediction.xlsx", sheet_name="Semester_2")
+        df3 = pd.read_excel("output/Student_Performance_Prediction.xlsx", sheet_name="Semester_3")
+        return df1, df2, df3
+    except FileNotFoundError:
+        print("❌ Error: Excel file not found. Run data_creation_model.py first.")
+        return None, None, None
+    except Exception as e:
+        print(f"❌ Error loading data: {e}")
+        return None, None, None
 
 
 def build_features(df1, df2, df3):
-    """Merge all sems into one feature matrix per student."""
+    """Merge all semesters into one feature matrix per student."""
+    if df1 is None or df2 is None or df3 is None:
+        return None
+    
     merged = df1.merge(df2, on=["Roll_No", "Name"]).merge(df3, on=["Roll_No", "Name"])
 
     # Cluster scores per semester
@@ -93,7 +104,7 @@ def build_features(df1, df2, df3):
         for cluster, col in col_map.items():
             merged[f"{cluster}_{sem}"] = merged[col]
 
-    # Overall cluster average across sems
+    # Overall cluster average across semesters
     for cluster in ["Programming", "Theory", "Math_Logic"]:
         merged[f"{cluster}_Avg"] = merged[[f"{cluster}_Sem1", f"{cluster}_Sem2", f"{cluster}_Sem3"]].mean(axis=1)
 
@@ -114,6 +125,10 @@ def build_features(df1, df2, df3):
 
 def train_model(merged):
     """Train Random Forest to predict Sem4 performance per cluster."""
+    if merged is None or merged.empty:
+        print("❌ Error: No data to train on")
+        return {}
+    
     feature_cols = [
         "Programming_Sem1", "Programming_Sem2", "Programming_Sem3",
         "Theory_Sem1", "Theory_Sem2", "Theory_Sem3",
@@ -149,39 +164,58 @@ def train_model(merged):
 
 def predict_student(roll_no, merged, models):
     """Predict Sem4 performance for a student."""
-    student = merged[merged["Roll_No"] == roll_no]
-    if student.empty:
+    try:
+        student = merged[merged["Roll_No"] == roll_no]
+        if student.empty:
+            print(f"❌ Student with Roll No {roll_no} not found")
+            return None
+
+        feature_cols = models["Programming"][1]
+        X = student[feature_cols]
+
+        predictions = {}
+        for cluster, (model, cols) in models.items():
+            pred = model.predict(X)[0]
+            predictions[cluster] = round(pred, 2)
+
+        return predictions
+    except Exception as e:
+        print(f"❌ Error predicting: {e}")
         return None
-
-    feature_cols = models["Programming"][1]
-    X = student[feature_cols]
-
-    predictions = {}
-    for cluster, (model, cols) in models.items():
-        pred = model.predict(X)[0]
-        predictions[cluster] = round(pred, 2)
-
-    return predictions
 
 
 def get_recommendations(student_row, predictions):
-    """Return YouTube + book recs for weak clusters."""
-    recs = {}
-    for cluster, pred_score in predictions.items():
-        current_avg = student_row[f"{cluster}_Avg"].values[0]
-        if pred_score < 55 or current_avg < 55:
+    """
+    ✅ FIXED: Return recommendations for ALL clusters (not just weak ones)
+    The app expects recommendations for all 3 clusters to display them properly
+    """
+    if predictions is None or student_row is None:
+        return None
+    
+    try:
+        recs = {}
+        for cluster in ["Programming", "Theory", "Math_Logic"]:
+            pred_score = predictions.get(cluster, 50)
+            current_avg = float(student_row[f"{cluster}_Avg"].values[0])
+            
+            # Include ALL clusters in recommendations
             recs[cluster] = {
-                "youtube": YOUTUBE_RECOMMENDATIONS[cluster],
-                "books": BOOK_RECOMMENDATIONS[cluster],
+                "youtube": YOUTUBE_RECOMMENDATIONS.get(cluster, []),
+                "books": BOOK_RECOMMENDATIONS.get(cluster, []),
                 "current_avg": round(current_avg, 2),
                 "predicted": pred_score
             }
-    return recs
+        
+        return recs
+    except Exception as e:
+        print(f"❌ Error getting recommendations: {e}")
+        return None
 
 
 if __name__ == "__main__":
     df1, df2, df3 = load_data()
-    merged = build_features(df1, df2, df3)
-    models = train_model(merged)
-    print("Feature engineering and model training complete!")
-    print(merged[["Roll_No", "Name", "Programming_Avg", "Theory_Avg", "Math_Logic_Avg", "Sem3_Avg"]].head())
+    if df1 is not None:
+        merged = build_features(df1, df2, df3)
+        models = train_model(merged)
+        print("Feature engineering and model training complete!")
+        print(merged[["Roll_No", "Name", "Programming_Avg", "Theory_Avg", "Math_Logic_Avg", "Sem3_Avg"]].head())

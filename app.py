@@ -7,7 +7,7 @@ import os
 import io
 from datetime import datetime
 
-from data_creation import create_student_data
+from data_creation import create_student_data, STUDENT_PASSWORDS, STUDENT_NAMES
 from prediction_model import (
     load_data, build_features, train_model,
     predict_student, get_recommendations,
@@ -939,6 +939,8 @@ def generate_pdf(student, predictions, recommendations):
 if "page"         not in st.session_state: st.session_state.page = "login"
 if "student_data" not in st.session_state: st.session_state.student_data = None
 if "login_error"  not in st.session_state: st.session_state.login_error = ""
+if "is_admin"     not in st.session_state: st.session_state.is_admin = False
+if "admin_view_roll" not in st.session_state: st.session_state.admin_view_roll = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -949,51 +951,84 @@ if st.session_state.page == "login":
     _, mid, _ = st.columns([1, 1.1, 1])
     with mid:
         st.markdown("""
-        <div style='padding-top:60px; text-align:center;'>
+        <div style='padding-top:50px; text-align:center;'>
             <div style='font-size:3.5rem; margin-bottom:10px;'>🎓</div>
             <h1 style='font-size:1.7rem; font-weight:800; background:linear-gradient(135deg,#60a5fa,#a78bfa,#34d399);
                        -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin:0 0 8px;'>
                 Student Performance<br>Prediction System
             </h1>
-            <p style='color:#475569; font-size:0.85rem; margin-bottom:36px;'>B.Tech CSE · Random Forest · 3 Cluster Analysis</p>
+            <p style='color:#475569; font-size:0.85rem; margin-bottom:28px;'>B.Tech CSE · Random Forest · 3 Cluster Analysis</p>
         </div>
         """, unsafe_allow_html=True)
 
-        with st.container():
-            st.markdown("""<div style='background:linear-gradient(145deg,#0d1526,#0a1020); border:1px solid #1e3a5f;
-                            border-radius:20px; padding:36px 32px;'>""", unsafe_allow_html=True)
+        # ── Login type tabs ───────────────────────────────────────────────────
+        tab_student, tab_admin = st.tabs(["🎓  Student Login", "🛡️  Admin Login"])
 
-            roll_no = st.number_input("Roll Number", min_value=1, max_value=20, value=1, step=1)
-            name_inp = st.text_input("Student Name", placeholder="e.g. Aarav Sharma")
-            st.markdown("</div>", unsafe_allow_html=True)
+        # ── STUDENT TAB ───────────────────────────────────────────────────────
+        with tab_student:
+            st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+            roll_no  = st.number_input("Roll Number", min_value=1, max_value=20, value=1, step=1, key="s_roll")
+            password = st.text_input("Password", type="password", placeholder="Enter your password", key="s_pass")
 
             col_btn, _ = st.columns([1, 1])
             with col_btn:
-                login_btn = st.button("🚀  Login & View Report", use_container_width=True)
+                login_btn = st.button("🚀  Login & View Report", use_container_width=True, key="s_login")
 
-            if st.session_state.login_error:
+            if st.session_state.login_error and not st.session_state.is_admin:
                 st.markdown(f"<div class='error-msg'>❌ {st.session_state.login_error}</div>", unsafe_allow_html=True)
 
             if login_btn:
                 s = merged[merged["Roll_No"] == roll_no]
                 if s.empty:
                     st.session_state.login_error = "Roll number not found."
-                elif not name_inp.strip():
-                    st.session_state.login_error = "Please enter student name."
-                elif name_inp.strip().lower() != s["Name"].values[0].strip().lower():
-                    st.session_state.login_error = f"Name does not match Roll No {roll_no}."
+                elif not password.strip():
+                    st.session_state.login_error = "Please enter your password."
+                elif password.strip() != STUDENT_PASSWORDS.get(roll_no, ""):
+                    st.session_state.login_error = f"Incorrect password for Roll No {roll_no}."
                 else:
-                    st.session_state.login_error = ""
+                    st.session_state.login_error  = ""
+                    st.session_state.is_admin     = False
                     st.session_state.student_data = s
-                    st.session_state.page = "dashboard"
+                    st.session_state.page         = "dashboard"
                     st.rerun()
 
+        # ── ADMIN TAB ─────────────────────────────────────────────────────────
+        with tab_admin:
+            st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+            admin_user = st.text_input("Admin Username", placeholder="Enter username", key="a_user")
+            admin_pass = st.text_input("Admin Password", type="password", placeholder="Enter password", key="a_pass")
+
+            col_btn2, _ = st.columns([1, 1])
+            with col_btn2:
+                admin_btn = st.button("🛡️  Admin Login", use_container_width=True, key="a_login")
+
+            if st.session_state.login_error and st.session_state.is_admin:
+                st.markdown(f"<div class='error-msg'>❌ {st.session_state.login_error}</div>", unsafe_allow_html=True)
+
+            # Admin credentials — change these as needed
+            ADMIN_USERNAME = "admin"
+            ADMIN_PASSWORD = "admin123"
+
+            if admin_btn:
+                if not admin_user.strip() or not admin_pass.strip():
+                    st.session_state.login_error = "Please enter username and password."
+                    st.session_state.is_admin = True
+                elif admin_user.strip() != ADMIN_USERNAME or admin_pass.strip() != ADMIN_PASSWORD:
+                    st.session_state.login_error = "Incorrect admin credentials."
+                    st.session_state.is_admin = True
+                else:
+                    st.session_state.login_error     = ""
+                    st.session_state.is_admin        = True
+                    st.session_state.admin_view_roll = None
+                    st.session_state.page            = "admin"
+                    st.rerun()
+
+
+
         st.markdown("""
-        <div style='text-align:center; color:#334155; font-size:0.75rem; margin-top:28px; padding-bottom:40px;'>
+        <div style='text-align:center; color:#334155; font-size:0.75rem; margin-top:24px; padding-bottom:40px;'>
             20 Students · 3 Semesters · 9 Subjects · AI Prediction
         </div>""", unsafe_allow_html=True)
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # PAGE 2 ── DASHBOARD
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1159,6 +1194,23 @@ elif st.session_state.page == "report":
     # Cluster analysis cards
     st.markdown("<p class='section-title'>Cluster-wise Performance Analysis</p>", unsafe_allow_html=True)
 
+    # Inline style maps — Streamlit strips class= attributes, so we use styles directly
+    CC_STYLES = {
+        "cc-prog":   "background:linear-gradient(135deg,#0d1f3c,#0a1828); border:1px solid rgba(59,130,246,0.25); border-radius:14px; padding:24px 28px; margin-bottom:16px;",
+        "cc-theory": "background:linear-gradient(135deg,#150d2e,#100a22); border:1px solid rgba(139,92,246,0.25); border-radius:14px; padding:24px 28px; margin-bottom:16px;",
+        "cc-math":   "background:linear-gradient(135deg,#082819,#061d12); border:1px solid rgba(52,211,153,0.25); border-radius:14px; padding:24px 28px; margin-bottom:16px;",
+    }
+    SCORE_STYLES = {
+        "cc-score-prog":   "font-size:1.8rem; font-weight:800; font-family:JetBrains Mono,monospace; color:#60a5fa;",
+        "cc-score-theory": "font-size:1.8rem; font-weight:800; font-family:JetBrains Mono,monospace; color:#a78bfa;",
+        "cc-score-math":   "font-size:1.8rem; font-weight:800; font-family:JetBrains Mono,monospace; color:#34d399;",
+    }
+    PB_STYLES = {
+        "pb-prog":   "height:100%; border-radius:999px; background:linear-gradient(90deg,#3b82f6,#60a5fa);",
+        "pb-theory": "height:100%; border-radius:999px; background:linear-gradient(90deg,#7c3aed,#a78bfa);",
+        "pb-math":   "height:100%; border-radius:999px; background:linear-gradient(90deg,#059669,#34d399);",
+    }
+
     for cluster, meta in CLUSTER_META.items():
         cur   = float(student[f"{cluster}_Avg"].values[0])
         pred  = float(preds[cluster])
@@ -1216,8 +1268,13 @@ elif st.session_state.page == "report":
         cl_name     = cluster.replace("_", " / ")
         cl_subjects = " · ".join(meta["subjects"].values())
 
+        # Build card with fully inline styles (no class= attributes — Streamlit strips them)
+        card_bg    = CC_STYLES[cc_cls]
+        score_style = SCORE_STYLES[score_cls]
+        pb_gradient = PB_STYLES[pb_cls].replace("{pct}", str(pct))
+
         card_html = (
-            f'<div class="{cc_cls}" style="border-radius:14px; padding:24px 28px; margin-bottom:16px;">'
+            f'<div style="{card_bg}">'
             f'<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;">'
             f'<div>'
             f'<div style="font-size:1.5rem; margin-bottom:4px;">{cl_icon}</div>'
@@ -1225,13 +1282,13 @@ elif st.session_state.page == "report":
             f'<div style="color:{cl_color}; font-size:0.76rem; margin-top:2px;">{cl_subjects}</div>'
             f'</div>'
             f'<div style="text-align:right;">'
-            f'<div class="{score_cls}" style="font-size:1.8rem; font-weight:800; font-family:JetBrains Mono,monospace;">{cur:.1f}</div>'
+            f'<div style="{score_style}">{cur:.1f}</div>'
             f'<div style="color:#475569; font-size:0.7rem;">Current Avg</div>'
             f'<div style="color:{cl_color}; font-size:0.85rem; font-weight:700; margin-top:6px;">Sem 4: {pred:.1f}</div>'
             f'</div>'
             f'</div>'
             f'<div style="background:rgba(255,255,255,0.06); border-radius:999px; height:5px; margin:8px 0 14px; overflow:hidden;">'
-            f'<div class="{pb_cls}" style="width:{pct}%; height:100%; border-radius:999px;"></div>'
+            f'<div style="{pb_gradient}"></div>'
             f'</div>'
             f'{alert_html}'
             f'<div style="color:#94a3b8; font-size:0.82rem; line-height:1.65; margin-bottom:12px;">{insight}</div>'
@@ -1276,6 +1333,520 @@ elif st.session_state.page == "report":
     </div>
     """, unsafe_allow_html=True)
 
+    pdf_buf = generate_pdf(student, preds, recs)
+    st.download_button(
+        label="📥  Download PDF Report",
+        data=pdf_buf,
+        file_name=f"SPP_Report_{name.replace(' ','_')}_Roll{roll:02d}.pdf",
+        mime="application/pdf"
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PAGE 4 ── ADMIN PANEL
+# ─────────────────────────────────────────────────────────────────────────────
+elif st.session_state.page == "admin":
+
+    # ── Nav bar ───────────────────────────────────────────────────────────────
+    c1, c2 = st.columns([5, 1])
+    with c1:
+        st.markdown("""
+        <div style='background:linear-gradient(90deg,#1a0533,#0d1526); border:1px solid #3b1f6b;
+                    border-radius:12px; padding:13px 24px; display:flex; align-items:center;
+                    gap:12px; margin-bottom:24px;'>
+            <span style='color:#a78bfa; font-weight:700; font-size:1rem;'>🛡️ Admin Panel</span>
+            <span style='color:#2d1b5e;'>|</span>
+            <span style='color:#94a3b8; font-size:0.85rem;'>
+                <strong style='color:#e2e8f0;'>Administrator</strong>
+                &nbsp;·&nbsp; Full Student Access &nbsp;·&nbsp; B.Tech CSE
+            </span>
+        </div>
+        """, unsafe_allow_html=True)
+    with c2:
+        if st.button("← Logout", key="admin_logout"):
+            st.session_state.page         = "login"
+            st.session_state.is_admin     = False
+            st.session_state.admin_view_roll = None
+            st.session_state.student_data = None
+            st.rerun()
+
+    # ── Heading ───────────────────────────────────────────────────────────────
+    st.markdown("""
+    <h2 style='color:#e2e8f0; font-size:1.4rem; font-weight:700; margin-bottom:4px;'>
+        📋 All Students Overview
+    </h2>
+    <p style='color:#475569; font-size:0.82rem; margin-bottom:20px;'>
+        Click any student row to view their full report
+    </p>
+    """, unsafe_allow_html=True)
+
+    # ── Summary metric cards ──────────────────────────────────────────────────
+    total_students  = len(merged)
+    avg_overall     = float(merged["Sem3_Avg"].mean())
+    avg_attendance  = float(merged["Attendance_Avg"].mean())
+    at_risk         = int((merged["Sem3_Avg"] < 50).sum())
+
+    st.markdown(f"""
+    <div class='metric-row'>
+        <div class='metric-card mc-blue'>
+            <span class='metric-icon'>👥</span>
+            <div class='metric-value mv-blue'>{total_students}</div>
+            <div class='metric-label'>Total Students</div>
+        </div>
+        <div class='metric-card mc-green'>
+            <span class='metric-icon'>📊</span>
+            <div class='metric-value mv-green'>{avg_overall:.1f}</div>
+            <div class='metric-label'>Class Avg (Sem 3)</div>
+        </div>
+        <div class='metric-card mc-purple'>
+            <span class='metric-icon'>📅</span>
+            <div class='metric-value mv-purple'>{avg_attendance:.0f}%</div>
+            <div class='metric-label'>Avg Attendance</div>
+        </div>
+        <div class='metric-card mc-orange'>
+            <span class='metric-icon'>⚠️</span>
+            <div class='metric-value mv-orange'>{at_risk}</div>
+            <div class='metric-label'>At Risk (&lt;50 avg)</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Class-wide Charts ─────────────────────────────────────────────────────
+    st.markdown("<p class='section-title'>📊 Class Performance Overview</p>", unsafe_allow_html=True)
+
+    # Chart 1 + 2: Bar chart of all students + Cluster averages
+    c1, c2 = st.columns(2)
+
+    with c1:
+        # All students Sem3 avg bar chart
+        names_list  = [n.strip().split()[0] for n in merged["Name"].tolist()]  # first name only
+        s3_avgs     = merged["Sem3_Avg"].tolist()
+        bar_colors  = ["#34d399" if v >= 60 else ("#fbbf24" if v >= 50 else "#f87171") for v in s3_avgs]
+        fig_bar = go.Figure()
+        fig_bar.add_trace(go.Bar(
+            x=names_list, y=s3_avgs,
+            marker=dict(color=bar_colors, line=dict(width=0)),
+            text=[f"{v:.0f}" for v in s3_avgs],
+            textposition="outside",
+            textfont=dict(size=9, color="#94a3b8"),
+        ))
+        fig_bar.add_hline(y=50, line_dash="dot", line_color="#fbbf24", line_width=1.5,
+                          annotation_text="  Pass (50)", annotation_font=dict(color="#fbbf24", size=10))
+        fig_bar.update_layout(
+            title=dict(text="Sem 3 Average — All Students", font=dict(size=13, color="#94a3b8")),
+            xaxis=dict(tickangle=-45, tickfont=dict(size=8), gridcolor="rgba(0,0,0,0)"),
+            yaxis=dict(range=[0, 110], gridcolor="#0d1829"),
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(color="#94a3b8", family="Inter"),
+            margin=dict(l=16, r=16, t=44, b=60),
+            showlegend=False,
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
+
+    with c2:
+        # Cluster averages grouped bar
+        prog_avgs  = merged["Programming_Avg"].tolist()
+        theory_avgs= merged["Theory_Avg"].tolist()
+        math_avgs  = merged["Math_Logic_Avg"].tolist()
+        fig_clust = go.Figure()
+        fig_clust.add_trace(go.Bar(name="Programming", x=names_list, y=prog_avgs,
+                                    marker_color="#3b82f6", opacity=0.85))
+        fig_clust.add_trace(go.Bar(name="Theory",      x=names_list, y=theory_avgs,
+                                    marker_color="#7c3aed", opacity=0.85))
+        fig_clust.add_trace(go.Bar(name="Math/Logic",  x=names_list, y=math_avgs,
+                                    marker_color="#059669", opacity=0.85))
+        fig_clust.update_layout(
+            title=dict(text="Cluster Averages — All Students", font=dict(size=13, color="#94a3b8")),
+            barmode="group",
+            xaxis=dict(tickangle=-45, tickfont=dict(size=8), gridcolor="rgba(0,0,0,0)"),
+            yaxis=dict(range=[0, 110], gridcolor="#0d1829"),
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(color="#94a3b8", family="Inter"),
+            margin=dict(l=16, r=16, t=44, b=60),
+            legend=dict(bgcolor="rgba(0,0,0,0)", bordercolor="#1e3a5f", borderwidth=1,
+                        font=dict(size=10, color="#94a3b8")),
+        )
+        st.plotly_chart(fig_clust, use_container_width=True)
+
+    # Chart 3 + 4: Attendance + Sem trend line
+    c3, c4 = st.columns(2)
+
+    with c3:
+        # Attendance bar for all students
+        att_vals   = merged["Attendance_Avg"].tolist()
+        att_colors = ["#34d399" if v >= 75 else ("#fbbf24" if v >= 65 else "#f87171") for v in att_vals]
+        fig_att = go.Figure()
+        fig_att.add_trace(go.Bar(
+            x=names_list, y=att_vals,
+            marker=dict(color=att_colors, line=dict(width=0)),
+            text=[f"{v:.0f}%" for v in att_vals],
+            textposition="outside",
+            textfont=dict(size=9, color="#94a3b8"),
+        ))
+        fig_att.add_hline(y=75, line_dash="dot", line_color="#fbbf24", line_width=1.5,
+                          annotation_text="  75% Min", annotation_font=dict(color="#fbbf24", size=10))
+        fig_att.update_layout(
+            title=dict(text="Attendance % — All Students", font=dict(size=13, color="#94a3b8")),
+            xaxis=dict(tickangle=-45, tickfont=dict(size=8), gridcolor="rgba(0,0,0,0)"),
+            yaxis=dict(range=[0, 115], gridcolor="#0d1829"),
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(color="#94a3b8", family="Inter"),
+            margin=dict(l=16, r=16, t=44, b=60),
+            showlegend=False,
+        )
+        st.plotly_chart(fig_att, use_container_width=True)
+
+    with c4:
+        # Class average trend Sem1 → Sem2 → Sem3
+        class_s1 = float(merged["Sem1_Avg"].mean())
+        class_s2 = float(merged["Sem2_Avg"].mean())
+        class_s3 = float(merged["Sem3_Avg"].mean())
+        # per-student trend lines (faint)
+        fig_trend = go.Figure()
+        for _, row in merged.iterrows():
+            fig_trend.add_trace(go.Scatter(
+                x=["Sem 1", "Sem 2", "Sem 3"],
+                y=[float(row["Sem1_Avg"]), float(row["Sem2_Avg"]), float(row["Sem3_Avg"])],
+                mode="lines",
+                line=dict(color="#1e3a5f", width=1),
+                showlegend=False, hoverinfo="skip",
+            ))
+        # class average line on top
+        fig_trend.add_trace(go.Scatter(
+            x=["Sem 1", "Sem 2", "Sem 3"],
+            y=[class_s1, class_s2, class_s3],
+            mode="lines+markers+text",
+            line=dict(color="#60a5fa", width=3),
+            marker=dict(size=10, color="#60a5fa", line=dict(color="#060b14", width=2)),
+            text=[f"{class_s1:.1f}", f"{class_s2:.1f}", f"{class_s3:.1f}"],
+            textposition="top center",
+            textfont=dict(size=11, color="#60a5fa"),
+            name="Class Avg",
+        ))
+        fig_trend.update_layout(
+            title=dict(text="Semester Trend — Class Average vs Each Student", font=dict(size=13, color="#94a3b8")),
+            xaxis=dict(gridcolor="rgba(0,0,0,0)"),
+            yaxis=dict(range=[0, 110], gridcolor="#0d1829"),
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(color="#94a3b8", family="Inter"),
+            margin=dict(l=16, r=16, t=44, b=16),
+            legend=dict(bgcolor="rgba(0,0,0,0)", bordercolor="#1e3a5f", borderwidth=1,
+                        font=dict(size=10, color="#94a3b8")),
+        )
+        st.plotly_chart(fig_trend, use_container_width=True)
+
+    # ── Semester filter ───────────────────────────────────────────────────────
+    st.markdown("<p class='section-title'>Student Results Table</p>", unsafe_allow_html=True)
+
+    sem_filter = st.selectbox(
+        "View Semester",
+        ["All Semesters", "Semester 1", "Semester 2", "Semester 3"],
+        key="admin_sem_filter"
+    )
+
+    # ── Build table ───────────────────────────────────────────────────────────
+    SEM_COLS = {
+        "Semester 1": ["C_Programming", "Maths_I", "Digital_Logic", "Sem1_Attendance"],
+        "Semester 2": ["Data_Structures", "Discrete_Maths", "Computer_Organization", "Sem2_Attendance"],
+        "Semester 3": ["Algorithms", "Operating_Systems", "DBMS", "Sem3_Attendance"],
+    }
+    SEM_LABELS = {
+        "C_Programming": "C Prog", "Maths_I": "Maths I", "Digital_Logic": "Dig. Logic",
+        "Sem1_Attendance": "Attend %",
+        "Data_Structures": "Data Struct", "Discrete_Maths": "Disc. Maths",
+        "Computer_Organization": "Comp. Org", "Sem2_Attendance": "Attend %",
+        "Algorithms": "Algorithms", "Operating_Systems": "OS",
+        "DBMS": "DBMS", "Sem3_Attendance": "Attend %",
+    }
+
+    # Header
+    if sem_filter == "All Semesters":
+        header_html = (
+            "<div style='display:grid; grid-template-columns:40px 180px 80px 80px 80px 80px 80px; "
+            "gap:6px; padding:10px 20px; background:#0a0a0f; border-bottom:1px solid #1e3a5f; "
+            "font-size:.65rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:1px;'>"
+            "<div>#</div><div>Student Name</div>"
+            "<div style='text-align:center'>Sem 1 Avg</div>"
+            "<div style='text-align:center'>Sem 2 Avg</div>"
+            "<div style='text-align:center'>Sem 3 Avg</div>"
+            "<div style='text-align:center'>Attendance</div>"
+            "<div style='text-align:center'>Action</div>"
+            "</div>"
+        )
+    else:
+        sub_cols = SEM_COLS[sem_filter]
+        sub_labels = [SEM_LABELS[c] for c in sub_cols]
+        col_widths = "40px 180px " + " ".join(["70px"] * len(sub_cols)) + " 80px"
+        header_html = (
+            f"<div style='display:grid; grid-template-columns:{col_widths}; "
+            f"gap:6px; padding:10px 20px; background:#0a0a0f; border-bottom:1px solid #1e3a5f; "
+            f"font-size:.65rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:1px;'>"
+            f"<div>#</div><div>Student Name</div>"
+            + "".join(f"<div style='text-align:center'>{l}</div>" for l in sub_labels)
+            + "<div style='text-align:center'>Action</div>"
+            "</div>"
+        )
+
+    st.markdown(
+        f"<div style='background:#0d111a; border:1px solid #1e3a5f; border-radius:14px; overflow:hidden; margin-bottom:24px;'>"
+        f"{header_html}",
+        unsafe_allow_html=True
+    )
+
+    for _, row in merged.iterrows():
+        roll   = int(row["Roll_No"])
+        name   = row["Name"].strip()
+        s1_avg = float(row["Sem1_Avg"])
+        s2_avg = float(row["Sem2_Avg"])
+        s3_avg = float(row["Sem3_Avg"])
+        att    = float(row["Attendance_Avg"])
+
+        def score_badge(sc):
+            g, gc, gbg2, gbd = get_grade(sc)
+            return (
+                f'<span style="background:{gbg2}; color:{gc}; border:1px solid {gbd}; '
+                f'padding:2px 8px; border-radius:5px; font-size:.75rem; '
+                f'font-weight:700; font-family:monospace;">{sc:.0f} {g}</span>'
+            )
+
+        att_col = "#34d399" if att >= 75 else ("#fbbf24" if att >= 65 else "#f87171")
+
+        if sem_filter == "All Semesters":
+            row_html = (
+                f"<div style='display:grid; grid-template-columns:40px 180px 80px 80px 80px 80px 80px; "
+                f"gap:6px; padding:11px 20px; border-bottom:1px solid #0d1829; align-items:center;'>"
+                f"<div style='color:#334155; font-size:.75rem; font-weight:600;'>{roll:02d}</div>"
+                f"<div style='color:#e2e8f0; font-size:.82rem; font-weight:500;'>{name}</div>"
+                f"<div style='text-align:center;'>{score_badge(s1_avg)}</div>"
+                f"<div style='text-align:center;'>{score_badge(s2_avg)}</div>"
+                f"<div style='text-align:center;'>{score_badge(s3_avg)}</div>"
+                f"<div style='text-align:center; color:{att_col}; font-size:.8rem; font-weight:700;'>{att:.0f}%</div>"
+                f"<div style='text-align:center;'>__BTN_{roll}__</div>"
+                f"</div>"
+            )
+        else:
+            sub_cols = SEM_COLS[sem_filter]
+            col_widths = "40px 180px " + " ".join(["70px"] * len(sub_cols)) + " 80px"
+            subject_cells = "".join(
+                f"<div style='text-align:center;'>{score_badge(float(row[c]))}</div>"
+                for c in sub_cols[:-1]
+            )
+            att_val = float(row[sub_cols[-1]])
+            att_c   = "#34d399" if att_val >= 75 else ("#fbbf24" if att_val >= 65 else "#f87171")
+            row_html = (
+                f"<div style='display:grid; grid-template-columns:{col_widths}; "
+                f"gap:6px; padding:11px 20px; border-bottom:1px solid #0d1829; align-items:center;'>"
+                f"<div style='color:#334155; font-size:.75rem; font-weight:600;'>{roll:02d}</div>"
+                f"<div style='color:#e2e8f0; font-size:.82rem; font-weight:500;'>{name}</div>"
+                + subject_cells
+                + f"<div style='text-align:center; color:{att_c}; font-size:.8rem; font-weight:700;'>{att_val:.0f}%</div>"
+                f"<div style='text-align:center;'>__BTN_{roll}__</div>"
+                f"</div>"
+            )
+
+        # Render row HTML (placeholder for button)
+        btn_placeholder = f"__BTN_{roll}__"
+        before_btn = row_html[:row_html.find(btn_placeholder)]
+        after_btn  = row_html[row_html.find(btn_placeholder) + len(btn_placeholder):]
+
+        col_row, col_btn = st.columns([6, 1])
+        with col_row:
+            st.markdown(before_btn + after_btn, unsafe_allow_html=True)
+        with col_btn:
+            if st.button("View →", key=f"view_{roll}"):
+                st.session_state.admin_view_roll = roll
+                st.session_state.student_data   = merged[merged["Roll_No"] == roll]
+                st.session_state.page           = "admin_student"
+                st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PAGE 5 ── ADMIN → STUDENT DETAIL VIEW
+# ─────────────────────────────────────────────────────────────────────────────
+elif st.session_state.page == "admin_student":
+
+    student  = st.session_state.student_data
+    roll     = int(student["Roll_No"].values[0])
+    name     = student["Name"].values[0].strip()
+    preds    = predict_student(roll, merged, models)
+    recs     = get_recommendations(student, preds)
+    sem3_avg = float(student["Sem3_Avg"].values[0])
+    att_avg  = float(student["Attendance_Avg"].values[0])
+    pred_avg = float(np.mean(list(preds.values())))
+    grade, gcolor, gbg, gborder = get_grade(sem3_avg)
+    pred_grade, pgcolor, *_ = get_grade(pred_avg)
+    a_stat, a_color = att_status(att_avg)
+
+    # ── Nav bar ───────────────────────────────────────────────────────────────
+    c1, c2, c3 = st.columns([4, 1, 1])
+    with c1:
+        st.markdown(f"""
+        <div style='background:linear-gradient(90deg,#1a0533,#0d1526); border:1px solid #3b1f6b;
+                    border-radius:12px; padding:13px 24px; margin-bottom:24px;'>
+            <span style='color:#a78bfa; font-weight:700;'>🛡️ Admin Panel</span>
+            <span style='color:#2d1b5e; margin:0 10px;'>|</span>
+            <span style='color:#94a3b8; font-size:0.85rem;'>
+                Viewing: <strong style='color:#e2e8f0;'>{name}</strong>
+                &nbsp;·&nbsp; Roll No: {roll:02d}
+            </span>
+        </div>
+        """, unsafe_allow_html=True)
+    with c2:
+        if st.button("← All Students", key="back_admin"):
+            st.session_state.page = "admin"
+            st.rerun()
+    with c3:
+        if st.button("⬅ Logout", key="admin_s_logout"):
+            st.session_state.page         = "login"
+            st.session_state.is_admin     = False
+            st.session_state.student_data = None
+            st.rerun()
+
+    st.markdown(f"""
+    <h2 style='color:#e2e8f0; font-size:1.4rem; font-weight:700; margin-bottom:4px;'>
+        📋 {name} — Full Report
+    </h2>
+    <p style='color:#475569; font-size:0.82rem; margin-bottom:24px;'>
+        Roll No: {roll:02d} · All 3 Semesters · Cluster Analysis · Sem 4 Prediction
+    </p>
+    """, unsafe_allow_html=True)
+
+    # ── Metric cards ──────────────────────────────────────────────────────────
+    st.markdown(f"""
+    <div class='metric-row'>
+        <div class='metric-card mc-blue'>
+            <span class='metric-icon'>🎯</span>
+            <div class='metric-value mv-blue'>{grade}</div>
+            <div class='metric-label'>Current Grade</div>
+        </div>
+        <div class='metric-card mc-purple'>
+            <span class='metric-icon'>🔮</span>
+            <div class='metric-value mv-purple'>{pred_avg:.1f}</div>
+            <div class='metric-label'>Predicted Sem 4</div>
+        </div>
+        <div class='metric-card mc-green'>
+            <span class='metric-icon'>📅</span>
+            <div class='metric-value mv-green'>{att_avg:.0f}%</div>
+            <div class='metric-label'>Attendance · {a_stat}</div>
+        </div>
+        <div class='metric-card mc-orange'>
+            <span class='metric-icon'>📊</span>
+            <div class='metric-value mv-orange'>{sem3_avg:.1f}</div>
+            <div class='metric-label'>Sem 3 Avg</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── All 3 semesters side by side ──────────────────────────────────────────
+    st.markdown("<p class='section-title'>📚 Semester-wise Subject Marks</p>", unsafe_allow_html=True)
+
+    sem_data = [
+        ("Semester 1", [
+            ("C Programming",  "C_Programming"),
+            ("Maths I",        "Maths_I"),
+            ("Digital Logic",  "Digital_Logic"),
+        ], "Sem1_Attendance", "#3b82f6"),
+        ("Semester 2", [
+            ("Data Structures",   "Data_Structures"),
+            ("Discrete Maths",    "Discrete_Maths"),
+            ("Computer Org.",     "Computer_Organization"),
+        ], "Sem2_Attendance", "#7c3aed"),
+        ("Semester 3", [
+            ("Algorithms",        "Algorithms"),
+            ("Operating Systems", "Operating_Systems"),
+            ("DBMS",              "DBMS"),
+        ], "Sem3_Attendance", "#059669"),
+    ]
+
+    cols = st.columns(3)
+    for col, (sem_name, subjects, att_col, col_accent) in zip(cols, sem_data):
+        with col:
+            att_val  = int(student[att_col].values[0])
+            att_c    = "#34d399" if att_val >= 75 else ("#fbbf24" if att_val >= 65 else "#f87171")
+            sem_avg  = float(np.mean([float(student[c].values[0]) for _, c in subjects]))
+            g_s, gc_s, gbg_s, gbd_s = get_grade(sem_avg)
+
+            rows_html = ""
+            for subj_name, subj_col in subjects:
+                sc = int(student[subj_col].values[0])
+                g, gc, gbg2, gbd = get_grade(sc)
+                status = "✓" if sc >= 40 else "✗"
+                s_col  = "#34d399" if sc >= 40 else "#f87171"
+                rows_html += (
+                    f'<div style="display:flex; justify-content:space-between; align-items:center; '
+                    f'padding:8px 0; border-bottom:1px solid #0d1829;">'
+                    f'<div style="color:#94a3b8; font-size:.8rem;">{subj_name}</div>'
+                    f'<div style="display:flex; align-items:center; gap:6px;">'
+                    f'<span style="font-family:monospace; font-size:.85rem; font-weight:700; color:{gc};">{sc}</span>'
+                    f'<span style="background:{gbg2}; color:{gc}; border:1px solid {gbd}; '
+                    f'padding:1px 6px; border-radius:4px; font-size:.7rem; font-weight:700;">{g}</span>'
+                    f'<span style="color:{s_col}; font-size:.75rem;">{status}</span>'
+                    f'</div></div>'
+                )
+
+            st.markdown(f"""
+            <div style='background:#0d111a; border:1px solid {col_accent}40;
+                        border-top:3px solid {col_accent}; border-radius:13px; padding:16px 18px;'>
+                <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;'>
+                    <div style='font-size:.9rem; font-weight:700; color:#e2e8f0;'>{sem_name}</div>
+                    <span style='background:{gbg_s}; color:{gc_s}; border:1px solid {gbd_s};
+                                 padding:2px 9px; border-radius:5px; font-size:.75rem; font-weight:700;'>
+                        Avg: {sem_avg:.1f} {g_s}
+                    </span>
+                </div>
+                {rows_html}
+                <div style='display:flex; justify-content:space-between; margin-top:10px;
+                            padding-top:8px; border-top:1px solid #1e3a5f;'>
+                    <div style='font-size:.75rem; color:#475569;'>Attendance</div>
+                    <div style='font-size:.82rem; font-weight:700; color:{att_c};'>{att_val}%</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    # ── Charts ────────────────────────────────────────────────────────────────
+    st.markdown("<p class='section-title'>Visual Analysis</p>", unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    with c1: st.plotly_chart(chart_attendance(student),      use_container_width=True)
+    with c2: st.plotly_chart(chart_cluster_pie(student),     use_container_width=True)
+    c3, c4 = st.columns(2)
+    with c3: st.plotly_chart(chart_performance_trend(student), use_container_width=True)
+    with c4: st.plotly_chart(chart_predicted(student, preds),  use_container_width=True)
+
+    # ── Subject marks full table ───────────────────────────────────────────────
+    st.markdown("<p class='section-title'>Subject Marks, Grades &amp; Status</p>", unsafe_allow_html=True)
+    rows_html = ""
+    for sname, col, clust, badge_cls, sem in SUBJECT_ROWS:
+        sc = int(student[col].values[0])
+        g, gc, gbg2, gbd = get_grade(sc)
+        status_html = (
+            '<span style="color:#34d399; font-size:0.78rem; font-weight:600;">✓ Pass</span>'
+            if sc >= 40 else
+            '<span style="color:#f87171; font-size:0.78rem; font-weight:600;">✗ Fail</span>'
+        )
+        rows_html += (
+            f'<div class="subject-row">'
+            f'<div class="subj-name">{sname}</div>'
+            f'<div><span class="subj-cluster-badge {badge_cls}">{clust}</span></div>'
+            f'<div style="color:#475569; font-size:0.8rem;">{sem}</div>'
+            f'<div class="subj-score">{sc}</div>'
+            f'<div style="display:flex; align-items:center; gap:8px;">'
+            f'<span class="grade-badge" style="background:{gbg2}; color:{gc}; border:1px solid {gbd};">{g}</span>'
+            f'{status_html}'
+            f'</div>'
+            f'</div>'
+        )
+    st.markdown(
+        f'<div class="subject-table">'
+        f'<div class="subject-table-header">'
+        f'<div>Subject</div><div>Cluster</div><div>Semester</div><div>Score</div><div>Grade / Status</div>'
+        f'</div>{rows_html}</div>',
+        unsafe_allow_html=True
+    )
+
+    # ── PDF download ──────────────────────────────────────────────────────────
+    st.markdown("<p class='section-title'>⬇️ Download Report as PDF</p>", unsafe_allow_html=True)
     pdf_buf = generate_pdf(student, preds, recs)
     st.download_button(
         label="📥  Download PDF Report",
